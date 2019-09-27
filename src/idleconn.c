@@ -48,6 +48,11 @@
 #include <sys/resource.h>
 #include <sys/socket.h>
 
+typedef struct
+{
+	__fd_mask __fds_bits[65535 / __NFDBITS];
+} fd_set_big;
+
 const char *prog_name;
 unsigned long num_conn, num_closed;
 struct timeval start_time;
@@ -73,7 +78,7 @@ main (int argc, char **argv)
 {
   int desired, current = 0, port, sd, max_sd = 0, n, i;
   struct sockaddr_in sin, server_addr;
-  fd_set readable, rdfds;
+  fd_set_big readable, rdfds;
   struct rlimit rlimit;
   struct hostent *he;
   char *server;

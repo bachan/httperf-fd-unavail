@@ -65,6 +65,11 @@
 #include <http.h>
 #include <conn.h>
 
+typedef struct
+{
+	__fd_mask fds_bits[65535 / __NFDBITS];
+} fd_set_big;
+
 /*if we don't have GNU compatible realloc, fake it*/
 #if HAVE_REALLOC == 0
 void *rpl_realloc(void *ptr, size_t size)
@@ -99,7 +104,7 @@ void *rpl_realloc(void *ptr, size_t size)
 static int running = 1;
 static int iteration;
 static u_long max_burst_len;
-static fd_set rdfds, wrfds;
+static fd_set_big rdfds, wrfds;
 static int min_sd = 0x7fffffff, max_sd = 0, alloced_sd_to_conn = 0;
 static struct timeval select_timeout;
 static struct sockaddr_in myaddr;
@@ -358,7 +363,7 @@ conn_timeout (Timer *t, Any_Type arg)
 }
 
 static void
-set_active (Conn *s, fd_set *fdset)
+set_active (Conn *s, fd_set_big *fdset)
 {
   int sd = s->sd;
   Any_Type arg;
@@ -722,10 +727,11 @@ core_init (void)
       exit (1);
     }
 
+#if 0
   if (rlimit.rlim_max > FD_SETSIZE)
     {
       fprintf (stderr, "%s: warning: open file limit > FD_SETSIZE; "
-	       "limiting max. # of open files to FD_SETSIZE\n", prog_name);
+	       "limiting max. # of open files to FD_SETSIZE (%d)\n", prog_name, FD_SETSIZE);
       rlimit.rlim_max = FD_SETSIZE;
     }
 
@@ -736,6 +742,7 @@ core_init (void)
 	       prog_name, strerror (errno));
       exit (1);
     }
+#endif
 
   if (verbose)
     printf ("%s: maximum number of open descriptors = %ld\n",
@@ -1018,6 +1025,10 @@ core_send (Conn *conn, Call *call)
     {
       call->req.iov[IE_HOST].iov_base = (caddr_t) "";
       call->req.iov[IE_HOST].iov_len = 0;
+
+// Fix: I've seen that we need to remove IE_NEWLINE1
+      call->req.iov[IE_NEWLINE1].iov_base = (caddr_t) "";
+      call->req.iov[IE_NEWLINE1].iov_len = 0;
     }
   else if (!call->req.iov[IE_HOST].iov_base)
     {
@@ -1155,7 +1166,7 @@ void
 core_loop (void)
 {
   int is_readable, is_writable, n, sd, bit, min_i, max_i, i = 0;
-  fd_set readable, writable;
+  fd_set_big readable, writable;
   fd_mask mask;
   Any_Type arg;
   Conn *conn;
